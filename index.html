@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoCA Mobile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-900 pb-12">
+  <nav class="bg-indigo-700 text-white p-4 sticky top-0 shadow z-10 flex justify-between items-center">
+    <div>
+      <h1 class="font-bold text-base">AutoCA Mobile</h1>
+      <p class="text-[10px] text-indigo-200">Double-Entry • GST • TDS</p>
+    </div>
+    <button onclick="exportGSTR1()" class="text-xs bg-indigo-900 hover:bg-indigo-800 text-white font-medium px-3 py-1.5 rounded-lg border border-indigo-500 shadow-sm">
+      Export GSTR-1
+    </button>
+  </nav>
+
+  <div class="p-4 space-y-4 max-w-md mx-auto">
+    <!-- Financial Metrics -->
+    <div class="grid grid-cols-2 gap-3">
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Revenue</span>
+        <div id="m-rev" class="text-lg font-bold text-slate-800 mt-1">₹0.00</div>
+      </div>
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">GST Output</span>
+        <div id="m-gst" class="text-lg font-bold text-indigo-600 mt-1">₹0.00</div>
+      </div>
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">TDS Credit</span>
+        <div id="m-tds" class="text-lg font-bold text-amber-600 mt-1">₹0.00</div>
+      </div>
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Receivables</span>
+        <div id="m-rec" class="text-lg font-bold text-emerald-600 mt-1">₹0.00</div>
+      </div>
+    </div>
+
+    <!-- Issue Tax Invoice Form -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <h2 class="font-bold text-sm text-slate-800 mb-3">Issue Tax Invoice (Auto-Ledger)</h2>
+      <form id="inv-form" class="space-y-3">
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Invoice Number</label>
+          <input id="inv_no" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" value="INV-001" required />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Client / Party Name</label>
+          <input id="party" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" placeholder="e.g. Infotech Solutions" required />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Client GSTIN</label>
+          <input id="gstin" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" placeholder="27AAACT2727Q1ZW" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Taxable Value (₹)</label>
+            <input id="taxable" type="number" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" placeholder="50000" required />
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">GST Rate</label>
+            <select id="rate" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 bg-white">
+              <option value="18">18%</option>
+              <option value="12">12%</option>
+              <option value="5">5%</option>
+              <option value="0">0%</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">TDS Deducted by Client</label>
+          <select id="tds" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 bg-white">
+            <option value="NONE">None</option>
+            <option value="194J">Sec 194J - Tech/Prof (10%)</option>
+            <option value="194C">Sec 194C - Contractor (2%)</option>
+          </select>
+        </div>
+        <button type="submit" id="btn-submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm py-2.5 rounded-lg shadow transition mt-2">
+          Post Transaction to Ledger
+        </button>
+      </form>
+    </div>
+
+    <!-- Recent Postings -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Automated Ledgers</h3>
+      <div id="invoice-list" class="divide-y divide-slate-100 text-sm text-slate-500">
+        <p class="py-2 text-xs text-slate-400">Loading vouchers...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://ca-backend-bn9s.onrender.com";
+
+    async function loadMetrics() {
+      try {
+        const res = await fetch(`${API_URL}/api/dashboard`);
+        const data = await res.json();
+        document.getElementById('m-rev').innerText = "₹" + data.metrics.total_revenue.toLocaleString('en-IN');
+        document.getElementById('m-gst').innerText = "₹" + data.metrics.gst_collected.toLocaleString('en-IN');
+        document.getElementById('m-tds').innerText = "₹" + data.metrics.tds_credit.toLocaleString('en-IN');
+        document.getElementById('m-rec').innerText = "₹" + data.metrics.outstanding_receivables.toLocaleString('en-IN');
+
+        const list = document.getElementById('invoice-list');
+        if (data.recent_invoices.length === 0) {
+          list.innerHTML = `<p class="py-2 text-xs text-slate-400">No vouchers yet. Submit an invoice above.</p>`;
+        } else {
+          list.innerHTML = data.recent_invoices.map(inv => `
+            <div class="py-2.5 flex justify-between items-center">
+              <div>
+                <p class="font-semibold text-slate-800 text-xs">${inv.party}</p>
+                <p class="text-[10px] text-slate-400">${inv.invoice_number}</p>
+              </div>
+              <div class="text-right">
+                <p class="font-bold text-slate-900 text-xs">₹${inv.amount.toLocaleString('en-IN')}</p>
+                <span class="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">Balanced JV</span>
+              </div>
+            </div>
+          `).join('');
+        }
+      } catch (e) {
+        console.error("Dashboard error:", e);
+      }
+    }
+
+    document.getElementById('inv-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit');
+      btn.innerText = "Posting to double-entry ledger...";
+      btn.disabled = true;
+
+      const payload = {
+        invoice_number: document.getElementById('inv_no').value,
+        party_name: document.getElementById('party').value,
+        party_gstin: document.getElementById('gstin').value || "27AAACT2727Q1ZW",
+        origin_state: "27",
+        place_of_supply: "27",
+        taxable_value: parseFloat(document.getElementById('taxable').value),
+        gst_rate: parseFloat(document.getElementById('rate').value),
+        tds_section: document.getElementById('tds').value
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/api/invoices`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          alert("Posted successfully! Journal entries and tax ledgers balanced.");
+          document.getElementById('inv_no').value = 'INV-' + Math.floor(100 + Math.random() * 900);
+          loadMetrics();
+        } else {
+          const err = await res.json();
+          alert("Failed: " + (err.detail || "Error posting invoice"));
+        }
+      } catch (err) {
+        alert("Network error connecting to API");
+      } finally {
+        btn.innerText = "Post Transaction to Ledger";
+        btn.disabled = false;
+      }
+    });
+
+    async function exportGSTR1() {
+      try {
+        const res = await fetch(`${API_URL}/api/reports/gstr1`);
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `GSTR1_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+      } catch (e) {
+        alert("Failed to export GSTR-1");
+      }
+    }
+
+    loadMetrics();
+  </script>
+</body>
+</html>
