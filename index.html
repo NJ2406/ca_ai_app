@@ -3,61 +3,95 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AutoCA Mobile</title>
+  <title>AutoCA Autonomous Compliance Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 text-slate-900 pb-12">
-  <nav class="bg-indigo-700 text-white p-4 sticky top-0 shadow z-10 flex justify-between items-center">
-    <div>
-      <h1 class="font-bold text-base">AutoCA Mobile</h1>
-      <p class="text-[10px] text-indigo-200">Double-Entry • GST • TDS</p>
+<body class="bg-slate-100 text-slate-900 pb-16">
+  <!-- Top Navigation & Return Exporters -->
+  <nav class="bg-indigo-900 text-white p-4 sticky top-0 shadow-md z-20">
+    <div class="flex justify-between items-center max-w-md mx-auto">
+      <div>
+        <h1 class="font-bold text-base tracking-tight">AutoCA Autonomous</h1>
+        <p class="text-[10px] text-indigo-300">GST • TDS • Double-Entry • IRN</p>
+      </div>
+      <div class="flex space-x-1.5">
+        <button onclick="downloadReport('gstr1')" class="text-[11px] bg-indigo-700 hover:bg-indigo-600 px-2 py-1 rounded font-medium border border-indigo-500">GSTR-1</button>
+        <button onclick="downloadReport('gstr2b')" class="text-[11px] bg-indigo-700 hover:bg-indigo-600 px-2 py-1 rounded font-medium border border-indigo-500">2B</button>
+        <button onclick="downloadReport('gstr3b')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 px-2 py-1 rounded font-semibold text-white shadow">3B</button>
+      </div>
     </div>
-    <button onclick="exportGSTR1()" class="text-xs bg-indigo-900 hover:bg-indigo-800 text-white font-medium px-3 py-1.5 rounded-lg border border-indigo-500 shadow-sm">
-      Export GSTR-1
-    </button>
   </nav>
 
   <div class="p-4 space-y-4 max-w-md mx-auto">
-    <!-- Financial Metrics -->
-    <div class="grid grid-cols-2 gap-3">
-      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Revenue</span>
-        <div id="m-rev" class="text-lg font-bold text-slate-800 mt-1">₹0.00</div>
+    <!-- Live GSTR-3B Settlement Card -->
+    <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-4 rounded-xl shadow-lg border border-slate-800">
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-[10px] tracking-wider uppercase text-indigo-300 font-semibold">GSTR-3B Net Cash Liability</span>
+        <span class="text-[9px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-mono">Sec 49 Offset</span>
       </div>
-      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">GST Output</span>
-        <div id="m-gst" class="text-lg font-bold text-indigo-600 mt-1">₹0.00</div>
-      </div>
-      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">TDS Credit</span>
-        <div id="m-tds" class="text-lg font-bold text-amber-600 mt-1">₹0.00</div>
-      </div>
-      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Receivables</span>
-        <div id="m-rec" class="text-lg font-bold text-emerald-600 mt-1">₹0.00</div>
+      <div id="m-net-tax" class="text-2xl font-black tracking-tight text-white">₹0.00</div>
+      <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-[11px]">
+        <div>
+          <span class="text-slate-400">Output Liability:</span>
+          <span id="m-gst" class="font-semibold text-rose-400 ml-1">₹0.00</span>
+        </div>
+        <div>
+          <span class="text-slate-400">ITC (GSTR-2B):</span>
+          <span id="m-itc" class="font-semibold text-emerald-400 ml-1">₹0.00</span>
+        </div>
       </div>
     </div>
 
-    <!-- Issue Tax Invoice Form -->
+    <!-- Financial Register Metrics -->
+    <div class="grid grid-cols-2 gap-3">
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase">Sales Register</span>
+        <div id="m-rev" class="text-base font-bold text-slate-800 mt-0.5">₹0.00</div>
+      </div>
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase">Purchase Register</span>
+        <div id="m-exp" class="text-base font-bold text-slate-800 mt-0.5">₹0.00</div>
+      </div>
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase">TDS Receivable</span>
+        <div id="m-tds-rec" class="text-base font-bold text-amber-600 mt-0.5">₹0.00</div>
+      </div>
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase">TDS Payable (281)</span>
+        <div id="m-tds-pay" class="text-base font-bold text-rose-600 mt-0.5">₹0.00</div>
+      </div>
+    </div>
+
+    <!-- Unified Autonomous Voucher Form -->
     <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-      <h2 class="font-bold text-sm text-slate-800 mb-3">Issue Tax Invoice (Auto-Ledger)</h2>
-      <form id="inv-form" class="space-y-3">
+      <div class="flex space-x-2 mb-3">
+        <button type="button" id="tab-sale" onclick="switchType('OUTWARD_TAX_INVOICE')" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white transition">Outward Sale</button>
+        <button type="button" id="tab-purchase" onclick="switchType('INWARD_PURCHASE')" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 transition">Inward Purchase</button>
+      </div>
+
+      <form id="voucher-form" class="space-y-3">
         <div>
-          <label class="text-[10px] font-bold text-slate-500 uppercase">Invoice Number</label>
-          <input id="inv_no" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" value="INV-001" required />
+          <div class="flex justify-between items-center">
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Invoice Number (Max 16 Chars)</label>
+            <span id="char-count" class="text-[9px] text-slate-400 font-mono">7/16</span>
+          </div>
+          <input id="inv_no" maxlength="16" oninput="document.getElementById('char-count').innerText=this.value.length+'/16'" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 font-mono" value="INV-001" required />
         </div>
+
         <div>
-          <label class="text-[10px] font-bold text-slate-500 uppercase">Client / Party Name</label>
-          <input id="party" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" placeholder="e.g. Infotech Solutions" required />
+          <label id="lbl-party" class="text-[10px] font-bold text-slate-500 uppercase">Client / Buyer Name</label>
+          <input id="party" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" placeholder="e.g. Acme Tech Solutions" required />
         </div>
+
         <div>
-          <label class="text-[10px] font-bold text-slate-500 uppercase">Client GSTIN</label>
-          <input id="gstin" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" placeholder="27AAACT2727Q1ZW" />
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Party GSTIN (15 Digits)</label>
+          <input id="gstin" maxlength="15" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 font-mono uppercase" placeholder="27AAACT2727Q1ZW" required />
         </div>
+
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="text-[10px] font-bold text-slate-500 uppercase">Taxable Value (₹)</label>
-            <input id="taxable" type="number" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" placeholder="50000" required />
+            <input id="taxable" type="number" step="0.01" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 font-mono" placeholder="50000" required />
           </div>
           <div>
             <label class="text-[10px] font-bold text-slate-500 uppercase">GST Rate</label>
@@ -69,73 +103,104 @@
             </select>
           </div>
         </div>
+
         <div>
-          <label class="text-[10px] font-bold text-slate-500 uppercase">TDS Deducted by Client</label>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">TDS Withholding Section</label>
           <select id="tds" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 bg-white">
             <option value="NONE">None</option>
-            <option value="194J">Sec 194J - Tech/Prof (10%)</option>
+            <option value="194J">Sec 194J - Professional / Tech (10%)</option>
             <option value="194C">Sec 194C - Contractor (2%)</option>
+            <option value="194I">Sec 194I - Rent (10%)</option>
           </select>
         </div>
-        <button type="submit" id="btn-submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm py-2.5 rounded-lg shadow transition mt-2">
-          Post Transaction to Ledger
+
+        <button type="submit" id="btn-submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm py-2.5 rounded-lg shadow mt-2">
+          Execute Autonomous Journal Entry
         </button>
       </form>
     </div>
 
-    <!-- Recent Postings -->
+    <!-- Live Register Feed -->
     <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-      <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Automated Ledgers</h3>
-      <div id="invoice-list" class="divide-y divide-slate-100 text-sm text-slate-500">
-        <p class="py-2 text-xs text-slate-400">Loading vouchers...</p>
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Live Register & IRN Vouchers</h3>
+        <span class="text-[10px] text-emerald-600 font-semibold">Real-time</span>
+      </div>
+      <div id="voucher-list" class="divide-y divide-slate-100 text-sm">
+        <p class="py-2 text-xs text-slate-400">Loading ledger feed...</p>
       </div>
     </div>
   </div>
 
   <script>
     const API_URL = "https://ca-backend-bn9s.onrender.com";
+    let currentType = "OUTWARD_TAX_INVOICE";
 
-    async function loadMetrics() {
+    function switchType(type) {
+      currentType = type;
+      const s = document.getElementById('tab-sale');
+      const p = document.getElementById('tab-purchase');
+      const lbl = document.getElementById('lbl-party');
+      if (type === 'OUTWARD_TAX_INVOICE') {
+        s.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white transition";
+        p.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 transition";
+        lbl.innerText = "Client / Buyer Name";
+      } else {
+        p.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white transition";
+        s.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 transition";
+        lbl.innerText = "Vendor / Supplier Name";
+      }
+    }
+
+    async function loadDashboard() {
       try {
         const res = await fetch(`${API_URL}/api/dashboard`);
         const data = await res.json();
-        document.getElementById('m-rev').innerText = "₹" + data.metrics.total_revenue.toLocaleString('en-IN');
-        document.getElementById('m-gst').innerText = "₹" + data.metrics.gst_collected.toLocaleString('en-IN');
-        document.getElementById('m-tds').innerText = "₹" + data.metrics.tds_credit.toLocaleString('en-IN');
-        document.getElementById('m-rec').innerText = "₹" + data.metrics.outstanding_receivables.toLocaleString('en-IN');
+        const m = data.metrics;
+        document.getElementById('m-net-tax').innerText = "₹" + m.net_gst_payable.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        document.getElementById('m-gst').innerText = "₹" + m.gst_output_liability.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        document.getElementById('m-itc').innerText = "₹" + m.itc_available.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        document.getElementById('m-rev').innerText = "₹" + m.total_revenue.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        document.getElementById('m-exp').innerText = "₹" + m.total_expenses.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        document.getElementById('m-tds-rec').innerText = "₹" + m.tds_receivable.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        document.getElementById('m-tds-pay').innerText = "₹" + m.tds_payable.toLocaleString('en-IN', {minimumFractionDigits: 2});
 
-        const list = document.getElementById('invoice-list');
+        const list = document.getElementById('voucher-list');
         if (data.recent_invoices.length === 0) {
-          list.innerHTML = `<p class="py-2 text-xs text-slate-400">No vouchers yet. Submit an invoice above.</p>`;
+          list.innerHTML = `<p class="py-2 text-xs text-slate-400">No entries yet. Post a sale or purchase invoice above.</p>`;
         } else {
-          list.innerHTML = data.recent_invoices.map(inv => `
+          list.innerHTML = data.recent_invoices.map(i => `
             <div class="py-2.5 flex justify-between items-center">
               <div>
-                <p class="font-semibold text-slate-800 text-xs">${inv.party}</p>
-                <p class="text-[10px] text-slate-400">${inv.invoice_number}</p>
+                <p class="font-semibold text-slate-800 text-xs">${i.party}</p>
+                <div class="flex items-center space-x-1.5 mt-0.5">
+                  <span class="text-[9px] font-mono bg-slate-100 text-slate-600 px-1 py-0.5 rounded">${i.invoice_number}</span>
+                  <span class="text-[9px] font-mono text-indigo-500">IRN: ${i.irn}</span>
+                </div>
               </div>
               <div class="text-right">
-                <p class="font-bold text-slate-900 text-xs">₹${inv.amount.toLocaleString('en-IN')}</p>
-                <span class="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">Balanced JV</span>
+                <p class="font-bold text-slate-900 text-xs">₹${i.amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</p>
+                <span class="text-[8px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded ${i.type === 'OUTWARD_TAX_INVOICE' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}">${i.type === 'OUTWARD_TAX_INVOICE' ? 'Sale' : 'Purchase'}</span>
               </div>
             </div>
           `).join('');
         }
-      } catch (e) {
-        console.error("Dashboard error:", e);
+      } catch (err) {
+        console.error("Dashboard error:", err);
       }
     }
 
-    document.getElementById('inv-form').addEventListener('submit', async (e) => {
+    document.getElementById('voucher-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('btn-submit');
-      btn.innerText = "Posting to double-entry ledger...";
+      btn.innerText = "Executing double-entry posting...";
       btn.disabled = true;
 
       const payload = {
         invoice_number: document.getElementById('inv_no').value,
+        invoice_type: currentType,
         party_name: document.getElementById('party').value,
-        party_gstin: document.getElementById('gstin').value || "27AAACT2727Q1ZW",
+        party_gstin: document.getElementById('gstin').value.toUpperCase(),
         origin_state: "27",
         place_of_supply: "27",
         taxable_value: parseFloat(document.getElementById('taxable').value),
@@ -150,37 +215,38 @@
           body: JSON.stringify(payload)
         });
         if (res.ok) {
-          alert("Posted successfully! Journal entries and tax ledgers balanced.");
+          const resData = await res.json();
+          alert(`Entry posted. IRN Hash generated:\n${resData.irn.substring(0, 24)}...`);
           document.getElementById('inv_no').value = 'INV-' + Math.floor(100 + Math.random() * 900);
-          loadMetrics();
+          loadDashboard();
         } else {
           const err = await res.json();
-          alert("Failed: " + (err.detail || "Error posting invoice"));
+          alert("Validation error: " + (err.detail || "Unable to post"));
         }
       } catch (err) {
-        alert("Network error connecting to API");
+        alert("Server communication error");
       } finally {
-        btn.innerText = "Post Transaction to Ledger";
+        btn.innerText = "Execute Autonomous Journal Entry";
         btn.disabled = false;
       }
     });
 
-    async function exportGSTR1() {
+    async function downloadReport(reportType) {
       try {
-        const res = await fetch(`${API_URL}/api/reports/gstr1`);
+        const res = await fetch(`${API_URL}/api/reports/${reportType}`);
         const data = await res.json();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `GSTR1_${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `${reportType.toUpperCase()}_Return_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
       } catch (e) {
-        alert("Failed to export GSTR-1");
+        alert("Failed to export statutory file");
       }
     }
 
-    loadMetrics();
+    loadDashboard();
   </script>
 </body>
 </html>
