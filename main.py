@@ -99,41 +99,28 @@ class Invoice(Base):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
+        await conn.execute(text("DROP TABLE IF EXISTS journal_lines, journal_transactions, invoices, chart_of_accounts CASCADE;"))
+        await conn.execute(text("DROP TYPE IF EXISTS invoicetype, tdsegment, reconciliationstatus CASCADE;"))
         await conn.run_sync(Base.metadata.create_all)
+    
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(func.count(Account.id)))
-        if result.scalar() == 0:
-            seed_accounts = [
-                Account(code="1001", name="Sundry Debtors", classification=AccountClassification.ASSET, system_tag="DEBTORS"),
-                Account(code="1002", name="TDS Receivable", classification=AccountClassification.ASSET, system_tag="TDS_RECEIVABLE"),
-                Account(code="1003", name="ITC CGST Ledger", classification=AccountClassification.ASSET, system_tag="ITC_CGST"),
-                Account(code="1004", name="ITC SGST Ledger", classification=AccountClassification.ASSET, system_tag="ITC_SGST"),
-                Account(code="1005", name="ITC IGST Ledger", classification=AccountClassification.ASSET, system_tag="ITC_IGST"),
-                Account(code="2001", name="Sundry Creditors", classification=AccountClassification.LIABILITY, system_tag="CREDITORS"),
-                Account(code="2002", name="Output CGST Payable", classification=AccountClassification.LIABILITY, system_tag="OUTPUT_CGST"),
-                Account(code="2003", name="Output SGST Payable", classification=AccountClassification.LIABILITY, system_tag="OUTPUT_SGST"),
-                Account(code="2004", name="Output IGST Payable", classification=AccountClassification.LIABILITY, system_tag="OUTPUT_IGST"),
-                Account(code="2005", name="TDS Payable", classification=AccountClassification.LIABILITY, system_tag="TDS_PAYABLE"),
-                Account(code="4001", name="Revenue / Sales", classification=AccountClassification.REVENUE, system_tag="SALES_REV"),
-                Account(code="5001", name="Operating Expenses / Purchases", classification=AccountClassification.EXPENSE, system_tag="EXPENSE_GEN"),
-            ]
-            session.add_all(seed_accounts)
-            await session.commit()
+        seed_accounts = [
+            Account(code="1001", name="Sundry Debtors", classification=AccountClassification.ASSET, system_tag="DEBTORS"),
+            Account(code="1002", name="TDS Receivable", classification=AccountClassification.ASSET, system_tag="TDS_RECEIVABLE"),
+            Account(code="1003", name="ITC CGST Ledger", classification=AccountClassification.ASSET, system_tag="ITC_CGST"),
+            Account(code="1004", name="ITC SGST Ledger", classification=AccountClassification.ASSET, system_tag="ITC_SGST"),
+            Account(code="1005", name="ITC IGST Ledger", classification=AccountClassification.ASSET, system_tag="ITC_IGST"),
+            Account(code="2001", name="Sundry Creditors", classification=AccountClassification.LIABILITY, system_tag="CREDITORS"),
+            Account(code="2002", name="Output CGST Payable", classification=AccountClassification.LIABILITY, system_tag="OUTPUT_CGST"),
+            Account(code="2003", name="Output SGST Payable", classification=AccountClassification.LIABILITY, system_tag="OUTPUT_SGST"),
+            Account(code="2004", name="Output IGST Payable", classification=AccountClassification.LIABILITY, system_tag="OUTPUT_IGST"),
+            Account(code="2005", name="TDS Payable", classification=AccountClassification.LIABILITY, system_tag="TDS_PAYABLE"),
+            Account(code="4001", name="Revenue / Sales", classification=AccountClassification.REVENUE, system_tag="SALES_REV"),
+            Account(code="5001", name="Operating Expenses / Purchases", classification=AccountClassification.EXPENSE, system_tag="EXPENSE_GEN"),
+        ]
+        session.add_all(seed_accounts)
+        await session.commit()
     yield
-
-app = FastAPI(title="AutoCA Complete Engine", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
 
 class CreateInvoicePayload(BaseModel):
     invoice_number: str = Field(..., max_length=16)  # Strict statutory 16-character limit
