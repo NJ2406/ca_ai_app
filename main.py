@@ -146,9 +146,15 @@ class CreateInvoicePayload(BaseModel):
     gst_rate: float = 18.0
     tds_section: str = "NONE"
 
-@app.get("/")
-def read_root():
-    return {"status": "AutoCA Engine Online", "modules": ["GSTR-1", "GSTR-2B", "GSTR-3B", "Registers", "IRN"]}
+@app.get("/api/reset-db")
+async def reset_db():
+    async with engine.begin() as conn:
+        from sqlalchemy import text
+        await conn.execute(text("DROP TABLE IF EXISTS journal_lines, journal_transactions, invoices CASCADE;"))
+        await conn.execute(text("DROP TYPE IF EXISTS invoicetype, tdsegment, reconciliationstatus CASCADE;"))
+        await conn.run_sync(Base.metadata.create_all)
+    return {"status": "Database schema recreated successfully with irn_hash and reconciliation columns"}
+
 
 @app.post("/api/invoices")
 async def create_invoice(payload: CreateInvoicePayload, db: AsyncSession = Depends(get_db)):
