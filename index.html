@@ -1,252 +1,178 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AutoCA Autonomous Compliance Engine</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-100 text-slate-900 pb-16">
-  <!-- Top Navigation & Return Exporters -->
-  <nav class="bg-indigo-900 text-white p-4 sticky top-0 shadow-md z-20">
-    <div class="flex justify-between items-center max-w-md mx-auto">
-      <div>
-        <h1 class="font-bold text-base tracking-tight">AutoCA Autonomous</h1>
-        <p class="text-[10px] text-indigo-300">GST • TDS • Double-Entry • IRN</p>
-      </div>
-      <div class="flex space-x-1.5">
-        <button onclick="downloadReport('gstr1')" class="text-[11px] bg-indigo-700 hover:bg-indigo-600 px-2 py-1 rounded font-medium border border-indigo-500">GSTR-1</button>
-        <button onclick="downloadReport('gstr2b')" class="text-[11px] bg-indigo-700 hover:bg-indigo-600 px-2 py-1 rounded font-medium border border-indigo-500">2B</button>
-        <button onclick="downloadReport('gstr3b')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 px-2 py-1 rounded font-semibold text-white shadow">3B</button>
-      </div>
-    </div>
-  </nav>
+import enum
+import hashlib
+import os
+import uuid
+from contextlib import asynccontextmanager
+from datetime import date, datetime
+from decimal import Decimal
+from typing import List, Optional
 
-  <div class="p-4 space-y-4 max-w-md mx-auto">
-    <!-- Live GSTR-3B Settlement Card -->
-    <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-4 rounded-xl shadow-lg border border-slate-800">
-      <div class="flex justify-between items-center mb-1">
-        <span class="text-[10px] tracking-wider uppercase text-indigo-300 font-semibold">GSTR-3B Net Cash Liability</span>
-        <span class="text-[9px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-mono">Sec 49 Offset</span>
-      </div>
-      <div id="m-net-tax" class="text-2xl font-black tracking-tight text-white">₹0.00</div>
-      <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-[11px]">
-        <div>
-          <span class="text-slate-400">Output Liability:</span>
-          <span id="m-gst" class="font-semibold text-rose-400 ml-1">₹0.00</span>
-        </div>
-        <div>
-          <span class="text-slate-400">ITC (GSTR-2B):</span>
-          <span id="m-itc" class="font-semibold text-emerald-400 ml-1">₹0.00</span>
-        </div>
-      </div>
-    </div>
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from sqlalchemy import (
+    String,
+    Numeric,
+    ForeignKey,
+    Date,
+    DateTime,
+    Text,
+    Enum as SQLEnum,
+    select,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-    <!-- Financial Register Metrics -->
-    <div class="grid grid-cols-2 gap-3">
-      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <span class="text-[10px] font-bold text-slate-400 uppercase">Sales Register</span>
-        <div id="m-rev" class="text-base font-bold text-slate-800 mt-0.5">₹0.00</div>
-      </div>
-      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <span class="text-[10px] font-bold text-slate-400 uppercase">Purchase Register</span>
-        <div id="m-exp" class="text-base font-bold text-slate-800 mt-0.5">₹0.00</div>
-      </div>
-      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <span class="text-[10px] font-bold text-slate-400 uppercase">TDS Receivable</span>
-        <div id="m-tds-rec" class="text-base font-bold text-amber-600 mt-0.5">₹0.00</div>
-      </div>
-      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <span class="text-[10px] font-bold text-slate-400 uppercase">TDS Payable (281)</span>
-        <div id="m-tds-pay" class="text-base font-bold text-rose-600 mt-0.5">₹0.00</div>
-      </div>
-    </div>
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 
-    <!-- Unified Autonomous Voucher Form -->
-    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-      <div class="flex space-x-2 mb-3">
-        <button type="button" id="tab-sale" onclick="switchType('OUTWARD_TAX_INVOICE')" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white transition">Outward Sale</button>
-        <button type="button" id="tab-purchase" onclick="switchType('INWARD_PURCHASE')" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 transition">Inward Purchase</button>
-      </div>
+engine = create_async_engine(DATABASE_URL, echo=False)
+AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
-      <form id="voucher-form" class="space-y-3">
-        <div>
-          <div class="flex justify-between items-center">
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Invoice Number (Max 16 Chars)</label>
-            <span id="char-count" class="text-[9px] text-slate-400 font-mono">7/16</span>
-          </div>
-          <input id="inv_no" maxlength="16" oninput="document.getElementById('char-count').innerText=this.value.length+'/16'" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 font-mono" value="INV-001" required />
-        </div>
+class Base(DeclarativeBase):
+    pass
 
-        <div>
-          <label id="lbl-party" class="text-[10px] font-bold text-slate-500 uppercase">Client / Buyer Name</label>
-          <input id="party" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5" placeholder="e.g. Acme Tech Solutions" required />
-        </div>
+class AccountClassification(str, enum.Enum):
+    ASSET = "ASSET"
+    LIABILITY = "LIABILITY"
+    EQUITY = "EQUITY"
+    REVENUE = "REVENUE"
+    EXPENSE = "EXPENSE"
 
-        <div>
-          <label class="text-[10px] font-bold text-slate-500 uppercase">Party GSTIN (15 Digits)</label>
-          <input id="gstin" maxlength="15" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 font-mono uppercase" placeholder="27AAACT2727Q1ZW" required />
-        </div>
+class InvoiceType(str, enum.Enum):
+    OUTWARD_TAX_INVOICE = "OUTWARD_TAX_INVOICE"
+    INWARD_PURCHASE = "INWARD_PURCHASE"
 
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Taxable Value (₹)</label>
-            <input id="taxable" type="number" step="0.01" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 font-mono" placeholder="50000" required />
-          </div>
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">GST Rate</label>
-            <select id="rate" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 bg-white">
-              <option value="18">18%</option>
-              <option value="12">12%</option>
-              <option value="5">5%</option>
-              <option value="0">0%</option>
-            </select>
-          </div>
-        </div>
+class TDSSegment(str, enum.Enum):
+    NONE = "NONE"
+    SEC_194C = "194C"
+    SEC_194J = "194J"
+    SEC_194I = "194I"
 
-        <div>
-          <label class="text-[10px] font-bold text-slate-500 uppercase">TDS Withholding Section</label>
-          <select id="tds" class="w-full text-sm border border-slate-300 p-2 rounded-lg mt-0.5 bg-white">
-            <option value="NONE">None</option>
-            <option value="194J">Sec 194J - Professional / Tech (10%)</option>
-            <option value="194C">Sec 194C - Contractor (2%)</option>
-            <option value="194I">Sec 194I - Rent (10%)</option>
-          </select>
-        </div>
+class ReconciliationStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    MATCHED = "MATCHED"
+    ITC_AVAILABLE = "ITC_AVAILABLE"
+    ITC_INELIGIBLE = "ITC_INELIGIBLE"
 
-        <button type="submit" id="btn-submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm py-2.5 rounded-lg shadow mt-2">
-          Execute Autonomous Journal Entry
-        </button>
-      </form>
-    </div>
+class Account(Base):
+    __tablename__ = "chart_of_accounts"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    classification: Mapped[AccountClassification] = mapped_column(SQLEnum(AccountClassification), nullable=False)
+    system_tag: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
-    <!-- Live Register Feed -->
-    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-      <div class="flex justify-between items-center mb-2">
-        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Live Register & IRN Vouchers</h3>
-        <span class="text-[10px] text-emerald-600 font-semibold">Real-time</span>
-      </div>
-      <div id="voucher-list" class="divide-y divide-slate-100 text-sm">
-        <p class="py-2 text-xs text-slate-400">Loading ledger feed...</p>
-      </div>
-    </div>
-  </div>
+class JournalTransaction(Base):
+    __tablename__ = "journal_transactions"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    voucher_number: Mapped[str] = mapped_column(String(50), unique=True)
+    transaction_date: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
+    narration: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    lines: Mapped[List["JournalLine"]] = relationship(back_populates="transaction", cascade="all, delete-orphan")
 
-  <script>
-    const API_URL = "https://ca-backend-bn9s.onrender.com";
-    let currentType = "OUTWARD_TAX_INVOICE";
+class JournalLine(Base):
+    __tablename__ = "journal_lines"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    transaction_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("journal_transactions.id"), index=True)
+    account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("chart_of_accounts.id"), index=True)
+    debit: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0.00)
+    credit: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0.00)
+    transaction: Mapped["JournalTransaction"] = relationship(back_populates="lines")
+    account: Mapped["Account"] = relationship()
 
-    function switchType(type) {
-      currentType = type;
-      const s = document.getElementById('tab-sale');
-      const p = document.getElementById('tab-purchase');
-      const lbl = document.getElementById('lbl-party');
-      if (type === 'OUTWARD_TAX_INVOICE') {
-        s.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white transition";
-        p.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 transition";
-        lbl.innerText = "Client / Buyer Name";
-      } else {
-        p.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white transition";
-        s.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 transition";
-        lbl.innerText = "Vendor / Supplier Name";
-      }
-    }
+class Invoice(Base):
+    __tablename__ = "invoices"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_number: Mapped[str] = mapped_column(String(16), index=True)
+    irn_hash: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True)
+    invoice_type: Mapped[InvoiceType] = mapped_column(SQLEnum(InvoiceType), nullable=False)
+    party_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    party_gstin: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)
+    place_of_supply: Mapped[str] = mapped_column(String(2), nullable=False)
+    origin_state: Mapped[str] = mapped_column(String(2), nullable=False)
+    taxable_value: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0.00)
+    cgst: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0.00)
+    sgst: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0.00)
+    igst: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0.00)
+    tds_section: Mapped[TDSSegment] = mapped_column(SQLEnum(TDSSegment), default=TDSSegment.NONE)
+    tds_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=0.00)
+    tds_deducted: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0.00)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0.00)
+    net_receivable_payable: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0.00)
+    reconciled_status: Mapped[ReconciliationStatus] = mapped_column(SQLEnum(ReconciliationStatus), default=ReconciliationStatus.PENDING)
+    invoice_date: Mapped[date] = mapped_column(Date, default=date.today)
 
-    async function loadDashboard() {
-      try {
-        const res = await fetch(`${API_URL}/api/dashboard`);
-        const data = await res.json();
-        const m = data.metrics;
-        document.getElementById('m-net-tax').innerText = "₹" + m.net_gst_payable.toLocaleString('en-IN', {minimumFractionDigits: 2});
-        document.getElementById('m-gst').innerText = "₹" + m.gst_output_liability.toLocaleString('en-IN', {minimumFractionDigits: 2});
-        document.getElementById('m-itc').innerText = "₹" + m.itc_available.toLocaleString('en-IN', {minimumFractionDigits: 2});
-        document.getElementById('m-rev').innerText = "₹" + m.total_revenue.toLocaleString('en-IN', {minimumFractionDigits: 2});
-        document.getElementById('m-exp').innerText = "₹" + m.total_expenses.toLocaleString('en-IN', {minimumFractionDigits: 2});
-        document.getElementById('m-tds-rec').innerText = "₹" + m.tds_receivable.toLocaleString('en-IN', {minimumFractionDigits: 2});
-        document.getElementById('m-tds-pay').innerText = "₹" + m.tds_payable.toLocaleString('en-IN', {minimumFractionDigits: 2});
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        # Drops obsolete structures and creates updated tables cleanly
+        await conn.execute(text("DROP TABLE IF EXISTS journal_lines, journal_transactions, invoices, chart_of_accounts CASCADE;"))
+        await conn.execute(text("DROP TYPE IF EXISTS accountclassification, invoicetype, tdssegment, reconciliationstatus CASCADE;"))
+        await conn.run_sync(Base.metadata.create_all)
+    
+    async with AsyncSessionLocal() as session:
+        seed_accounts = [
+            Account(code="1001", name="Sundry Debtors", classification=AccountClassification.ASSET, system_tag="DEBTORS"),
+            Account(code="1002", name="TDS Receivable", classification=AccountClassification.ASSET, system_tag="TDS_RECEIVABLE"),
+            Account(code="1003", name="ITC CGST Ledger", classification=AccountClassification.ASSET, system_tag="ITC_CGST"),
+            Account(code="1004", name="ITC SGST Ledger", classification=AccountClassification.ASSET, system_tag="ITC_SGST"),
+            Account(code="1005", name="ITC IGST Ledger", classification=AccountClassification.ASSET, system_tag="ITC_IGST"),
+            Account(code="2001", name="Sundry Creditors", classification=AccountClassification.LIABILITY, system_tag="CREDITORS"),
+            Account(code="2002", name="Output CGST Payable", classification=AccountClassification.LIABILITY, system_tag="OUTPUT_CGST"),
+            Account(code="2003", name="Output SGST Payable", classification=AccountClassification.LIABILITY, system_tag="OUTPUT_SGST"),
+            Account(code="2004", name="Output IGST Payable", classification=AccountClassification.LIABILITY, system_tag="OUTPUT_IGST"),
+            Account(code="2005", name="TDS Payable", classification=AccountClassification.LIABILITY, system_tag="TDS_PAYABLE"),
+            Account(code="4001", name="Revenue / Sales", classification=AccountClassification.REVENUE, system_tag="SALES_REV"),
+            Account(code="5001", name="Operating Expenses / Purchases", classification=AccountClassification.EXPENSE, system_tag="EXPENSE_GEN"),
+        ]
+        session.add_all(seed_accounts)
+        await session.commit()
+    yield
 
-        const list = document.getElementById('voucher-list');
-        if (data.recent_invoices.length === 0) {
-          list.innerHTML = `<p class="py-2 text-xs text-slate-400">No entries yet. Post a sale or purchase invoice above.</p>`;
-        } else {
-          list.innerHTML = data.recent_invoices.map(i => `
-            <div class="py-2.5 flex justify-between items-center">
-              <div>
-                <p class="font-semibold text-slate-800 text-xs">${i.party}</p>
-                <div class="flex items-center space-x-1.5 mt-0.5">
-                  <span class="text-[9px] font-mono bg-slate-100 text-slate-600 px-1 py-0.5 rounded">${i.invoice_number}</span>
-                  <span class="text-[9px] font-mono text-indigo-500">IRN: ${i.irn}</span>
-                </div>
-              </div>
-              <div class="text-right">
-                <p class="font-bold text-slate-900 text-xs">₹${i.amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</p>
-                <span class="text-[8px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded ${i.type === 'OUTWARD_TAX_INVOICE' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}">${i.type === 'OUTWARD_TAX_INVOICE' ? 'Sale' : 'Purchase'}</span>
-              </div>
-            </div>
-          `).join('');
-        }
-      } catch (err) {
-        console.error("Dashboard error:", err);
-      }
-    }
+# FastAPI instance initialization
+app = FastAPI(title="AutoCA Complete Engine", lifespan=lifespan)
 
-    document.getElementById('voucher-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById('btn-submit');
-      btn.innerText = "Executing double-entry posting...";
-      btn.disabled = true;
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-      const payload = {
-        invoice_number: document.getElementById('inv_no').value,
-        invoice_type: currentType,
-        party_name: document.getElementById('party').value,
-        party_gstin: document.getElementById('gstin').value.toUpperCase(),
-        origin_state: "27",
-        place_of_supply: "27",
-        taxable_value: parseFloat(document.getElementById('taxable').value),
-        gst_rate: parseFloat(document.getElementById('rate').value),
-        tds_section: document.getElementById('tds').value
-      };
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session
 
-      try {
-        const res = await fetch(`${API_URL}/api/invoices`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          const resData = await res.json();
-          alert(`Entry posted. IRN Hash generated:\n${resData.irn.substring(0, 24)}...`);
-          document.getElementById('inv_no').value = 'INV-' + Math.floor(100 + Math.random() * 900);
-          loadDashboard();
-        } else {
-          const err = await res.json();
-          alert("Validation error: " + (err.detail || "Unable to post"));
-        }
-      } catch (err) {
-        alert("Server communication error");
-      } finally {
-        btn.innerText = "Execute Autonomous Journal Entry";
-        btn.disabled = false;
-      }
-    });
+class CreateInvoicePayload(BaseModel):
+    invoice_number: str = Field(..., max_length=16)
+    invoice_type: str = "OUTWARD_TAX_INVOICE"
+    party_name: str
+    party_gstin: str
+    origin_state: str = "27"
+    place_of_supply: str = "27"
+    taxable_value: float
+    gst_rate: float = 18.0
+    tds_section: str = "NONE"
 
-    async function downloadReport(reportType) {
-      try {
-        const res = await fetch(`${API_URL}/api/reports/${reportType}`);
-        const data = await res.json();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${reportType.toUpperCase()}_Return_${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-      } catch (e) {
-        alert("Failed to export statutory file");
-      }
-    }
+@app.get("/")
+def read_root():
+    return {"status": "AutoCA Engine Online", "modules": ["GSTR-1", "GSTR-2B", "GSTR-3B", "Registers", "IRN"]}
 
-    loadDashboard();
-  </script>
-</body>
-</html>
+@app.post("/api/invoices")
+async def create_invoice(payload: CreateInvoicePayload, db: AsyncSession = Depends(get_db)):
+    try:
+        taxable = Decimal(str(payload.taxable_value))
+        rate = Decimal(str(payload.gst_rate))
+        total_tax = (taxable * (rate / Decimal("100.00"))).quantize(Decimal("0.01"))
+        
+        if payload.origin_state == payload.place_of_supply:
+            cgst = (total_tax / Decimal("2.00")).quantize(Decimal("0.01"))
+            sgst = total_tax - cgst
+            igst = Decimal("0.00")
+        else:
+            cgst, sgst, igst =
