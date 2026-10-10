@@ -133,7 +133,7 @@ async def lifespan(app: FastAPI):
         await session.commit()
     yield
 
-# FastAPI instance initialization
+# app must be defined before ANY routes:
 app = FastAPI(title="AutoCA Complete Engine", lifespan=lifespan)
 
 app.add_middleware(
@@ -147,6 +147,11 @@ app.add_middleware(
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
+
+@app.get("/")
+def read_root():
+    return {"status": "AutoCA Engine Online", "modules": ["GSTR-1", "GSTR-2B", "GSTR-3B", "Registers", "IRN"]}
+
 
 class CreateInvoicePayload(BaseModel):
     invoice_number: str = Field(..., max_length=16)
